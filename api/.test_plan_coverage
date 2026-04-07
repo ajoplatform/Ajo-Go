@@ -1,0 +1,8 @@
+tests/test_whatsapp_parser.py
+tests/test_payout_service.py
+tests/test_contributions.py
+tests/test_reminders.py
+tests/test_auth.py
+tests/test_api_groups.py
+e2e/test_whatsapp_import.py
+e2e/test_payout_cycle.py

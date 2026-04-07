@@ -1,0 +1,27 @@
+name: Test
+
+on:
+  push:
+    branches: [main, "**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: py actions/setup-pip@v5
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]" pytest pytest-asyncio httpx
+        working-directory: api
+      - name: Run unit tests
+        run: pytest tests/ -v --tb=short
+        working-directory: api
+      - name: Run e2e tests
+        run: pytest e2e/ -v --tb=short
+        working-directory: api
