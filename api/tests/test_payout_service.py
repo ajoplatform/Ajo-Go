@@ -1,5 +1,5 @@
 import pytest
-from api.services.payout_service import (
+from api.app.services.payout_service import (
     get_next_recipient,
     calculate_payout_amount,
     advance_cycle,
@@ -10,13 +10,13 @@ class TestGetNextRecipient:
     def test_no_payouts_returns_first_member(self):
         members = [{"id": 1, "rotation_order": 1}, {"id": 2, "rotation_order": 2}]
         payouts = []
-        result = get_next_recipient(members, payouts)
+        result = get_next_recipient(members, payouts, current_cycle=1)
         assert result["id"] == 1
 
     def test_member_one_paid_returns_member_two(self):
         members = [{"id": 1, "rotation_order": 1}, {"id": 2, "rotation_order": 2}]
         payouts = [{"member_id": 1, "cycle_number": 1}]
-        result = get_next_recipient(members, payouts)
+        result = get_next_recipient(members, payouts, current_cycle=1)
         assert result["id"] == 2
 
     def test_last_member_paid_returns_none(self):
@@ -25,7 +25,7 @@ class TestGetNextRecipient:
             {"member_id": 1, "cycle_number": 1},
             {"member_id": 2, "cycle_number": 1},
         ]
-        result = get_next_recipient(members, payouts)
+        result = get_next_recipient(members, payouts, current_cycle=1)
         assert result is None
 
     def test_skipped_member(self):

@@ -1,5 +1,5 @@
 import pytest
-from api.services.whatsapp_parser import parse_line, parse_file, WhatsAppParseResult
+from api.app.services.whatsapp_parser import parse_line, parse_file, WhatsAppParseResult
 
 
 class TestParseLine:
