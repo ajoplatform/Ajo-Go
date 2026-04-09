@@ -67,5 +67,44 @@ See [TEST_PLAN.md](TEST_PLAN.md) for the full test plan.
 
 ## References
 
-- [DESIGN.md](DESIGN.md) — approved product design
+- [DESIGN.md](DESDESIGN.md) — approved product design
 - [TEST_PLAN.md](TEST_PLAN.md) — test specification
+
+## Deploy Configuration (configured by /setup-deploy)
+
+- **Platform:** Vercel
+- **Production URL:** `https://your-project-name.vercel.app` (create at vercel.com)
+- **Deploy workflow:** Auto-deploy on push to main
+- **Deploy status command:** HTTP health check at `/health`
+- **Merge method:** squash
+- **Project type:** API (FastAPI)
+- **Post-deploy health check:** GET `/health`
+
+### Vercel Cron Jobs
+
+- **Reminders:** Runs every 15 minutes at `/api/cron/send-reminders`
+- Cron secret: Set `CRON_SECRET` env var in Vercel dashboard
+- Pass via header: `X-Cron-Secret: <your-secret>`
+
+### Environment Variables (set in Vercel dashboard)
+
+| Variable | Description |
+|----------|-------------|
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_KEY` | Supabase service role key |
+| `DATABASE_URL` | PostgreSQL connection string (from Supabase) |
+| `CRON_SECRET` | Secret for cron endpoint auth |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
+| `TWILIO_PHONE_NUMBER` | Twilio WhatsApp phone number |
+
+### Deploy Commands
+
+```bash
+# Local development
+cd api && pip install -r requirements.txt
+python -m uvicorn main:app --reload
+
+# Deploy (after connecting repo at vercel.com)
+git push origin main
+```
