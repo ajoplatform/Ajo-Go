@@ -1,7 +1,15 @@
+# /// script
+# dependencies = [
+#     "nanodjango",
+#     "dj-database-url",
+# ]
+# ///
+
 """
 AjoGo - Single-file Django admin with nanodjango
 Digital Savings & Thrift Platform for West African markets
 """
+
 
 import os
 
@@ -11,10 +19,12 @@ from django.contrib import admin
 from django.db import models
 
 db_url = dj_database_url.config(
-        default=os.getenv("DATABASE_URL", 'sqlite:///db.sqlite3'), # Optional: fallback for local dev
-        conn_max_age=600,              # Optional: persistent connections
-        conn_health_checks=True        # Optional: verify connection health
-    )
+    default=os.getenv(
+        "DATABASE_URL", "sqlite:///db.sqlite3"
+    ),  # Optional: fallback for local dev
+    conn_max_age=600,  # Optional: persistent connections
+    conn_health_checks=True,  # Optional: verify connection health
+)
 
 app = nanodjango.Django(
     INSTALLED_APPS=[
@@ -22,6 +32,7 @@ app = nanodjango.Django(
         "django.contrib.auth",
         "django.contrib.contenttypes",
         "django.contrib.messages",
+        "django.contrib.sessions",
     ],
     DATABASES={
         "default": db_url,
@@ -33,8 +44,8 @@ app = nanodjango.Django(
 
 # ============== MODELS ==============
 """Thrift group admin/owner"""
-class Admin(models.Model):
 
+class Admin(models.Model):
     email = models.CharField(max_length=255, unique=True)
     name = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -186,14 +197,14 @@ class Payout(models.Model):
 
 
 # ============== ADMIN ==============
-@admin.register(Admin)
+@app.admin(Admin)
 class AdminAdmin(admin.ModelAdmin):
     list_display = ["id", "email", "name", "created_at"]
     search_fields = ["email", "name"]
     list_filter = ["created_at"]
 
 
-@admin.register(Group)
+@app.admin(Group)
 class GroupAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -223,7 +234,7 @@ class GroupAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(Member)
+@app.admin(Member)
 class MemberAdmin(admin.ModelAdmin):
     list_display = ["id", "name", "phone", "group", "rotation_order", "created_at"]
     list_filter = ["group"]
@@ -232,7 +243,7 @@ class MemberAdmin(admin.ModelAdmin):
     ordering = ["group", "rotation_order"]
 
 
-@admin.register(Contribution)
+@app.admin(Contribution)
 class ContributionAdmin(admin.ModelAdmin):
     list_display = ["id", "member", "amount", "date", "source", "created_at"]
     list_filter = ["source", "date", "group"]
@@ -242,7 +253,7 @@ class ContributionAdmin(admin.ModelAdmin):
     ordering = ["-date"]
 
 
-@admin.register(ReminderRule)
+@app.admin(ReminderRule)
 class ReminderRuleAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -266,7 +277,7 @@ class ReminderRuleAdmin(admin.ModelAdmin):
     message_preview.short_description = "Message"
 
 
-@admin.register(ReminderState)
+@app.admin(ReminderState)
 class ReminderStateAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -279,7 +290,7 @@ class ReminderStateAdmin(admin.ModelAdmin):
     readonly_fields = ["created_at", "updated_at"]
 
 
-@admin.register(Payout)
+@app.admin(Payout)
 class PayoutAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -313,25 +324,39 @@ if __name__ == "__main__":
             call_command("check", verbosity=2)
             print("✅ Migrations complete!")
 
+        elif command == "changepassword":
+            from django.core.management import call_command
+
+            call_command("changepassword")
+
         elif command == "createsuperuser":
             from django.core.management import call_command
+
             call_command("createsuperuser")
 
         elif command == "check":
             from django.core.management import call_command
+
             call_command("check")
 
         elif command == "makemigrations":
             from django.core.management import call_command
+
             call_command("makemigrations")
 
-
         elif command == "runserver":
-            app.run()
+            import sys
+
+            if len(sys.argv) > 2:
+                app.run(sys.argv[2])
+            else:
+                app.run()
 
         else:
             print(f"Unknown command: {command}")
-            print("Available: check, makemigrations, migrate, createsuperuser, runserver")
+            print(
+                "Available: check, makemigrations, migrate, createsuperuser, runserver"
+            )
     else:
         # Default: run the app
         app.run()
