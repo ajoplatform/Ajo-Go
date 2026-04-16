@@ -4,26 +4,27 @@ Digital Savings & Thrift Platform for West African markets
 """
 
 import os
-import nanodjango
-from django.db import models
-from django.contrib import admin
 
+import dj_database_url
+import nanodjango
+from django.contrib import admin
+from django.db import models
+
+db_url = dj_database_url.config(
+        default=os.getenv("DATABASE_URL", 'sqlite:///db.sqlite3'), # Optional: fallback for local dev
+        conn_max_age=600,              # Optional: persistent connections
+        conn_health_checks=True        # Optional: verify connection health
+    )
 
 app = nanodjango.Django(
     INSTALLED_APPS=[
         "django.contrib.admin",
         "django.contrib.auth",
         "django.contrib.contenttypes",
+        "django.contrib.messages",
     ],
     DATABASES={
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("POSTGRES_DB", "postgres"),
-            "USER": os.getenv("POSTGRES_USER", "postgres"),
-            "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
-            "HOST": os.getenv("POSTGRES_HOST", "localhost"),
-            "PORT": os.getenv("POSTGRES_PORT", "5432"),
-        }
+        "default": db_url,
     },
     SECRET_KEY=os.getenv("DJANGO_SECRET_KEY", "changemebeforeproduction"),
     ALLOWED_HOSTS=["*"],
@@ -31,10 +32,8 @@ app = nanodjango.Django(
 
 
 # ============== MODELS ==============
-
-
+"""Thrift group admin/owner"""
 class Admin(models.Model):
-    """Thrift group admin/owner"""
 
     email = models.CharField(max_length=255, unique=True)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -187,8 +186,6 @@ class Payout(models.Model):
 
 
 # ============== ADMIN ==============
-
-
 @admin.register(Admin)
 class AdminAdmin(admin.ModelAdmin):
     list_display = ["id", "email", "name", "created_at"]
@@ -313,19 +310,28 @@ if __name__ == "__main__":
 
             call_command("makemigrations", verbosity=2)
             call_command("migrate", verbosity=2)
+            call_command("check", verbosity=2)
             print("✅ Migrations complete!")
 
         elif command == "createsuperuser":
             from django.core.management import call_command
-
             call_command("createsuperuser")
+
+        elif command == "check":
+            from django.core.management import call_command
+            call_command("check")
+
+        elif command == "makemigrations":
+            from django.core.management import call_command
+            call_command("makemigrations")
+
 
         elif command == "runserver":
             app.run()
 
         else:
             print(f"Unknown command: {command}")
-            print("Available: migrate, createsuperuser, runserver")
+            print("Available: check, makemigrations, migrate, createsuperuser, runserver")
     else:
         # Default: run the app
         app.run()
