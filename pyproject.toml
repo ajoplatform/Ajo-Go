@@ -1,0 +1,10 @@
+[project]
+name = "ajo-gogo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dj-database-url>=3.1.2",
+    "nanodjango>=0.16.0",
+]

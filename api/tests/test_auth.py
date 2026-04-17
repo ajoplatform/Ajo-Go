@@ -1,10 +1,10 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 
 class TestMagicLinkLogin:
     def test_magic_link_sent_on_signup(self, client):
-        with patch("api.auth.supabase_client") as mock:
+        with patch("api.app.core.auth.supabase_client") as mock:
             mock.auth.sign_in_with_otp = MagicMock()
             response = client.post(
                 "/api/auth/magic-link",

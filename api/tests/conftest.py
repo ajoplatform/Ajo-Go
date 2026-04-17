@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
-def client():
+def client(db_session):
     from api.main import app
 
     return TestClient(app)
@@ -13,10 +13,14 @@ def client():
 
 @pytest.fixture
 def auth_headers():
-    with patch("api.auth.supabase_client") as mock:
-        mock.auth.get_user.return_value = MagicMock(
+    from unittest.mock import MagicMock
+
+    with patch("api.app.core.auth.get_supabase") as mock_get_supabase:
+        mock_client = MagicMock()
+        mock_client.auth.get_user.return_value = MagicMock(
             user=MagicMock(id="test-admin-id", email="admin@test.com")
         )
+        mock_get_supabase.return_value = mock_client
     return {"Authorization": "Bearer test-token"}
 
 
@@ -26,19 +30,71 @@ def cron_secret(monkeypatch):
     return "test-cron-secret"
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def db_session():
-    pass
+    from api.app.db.database import engine
+    from api.app.db.models import Base
+
+    # Create all tables
+    Base.metadata.create_all(bind=engine)
+
+    from sqlalchemy.orm import sessionmaker
+
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    # Yield for test use
+    yield session
+
+    # Cleanup after test
+    session.close()
+    # Drop all tables for clean state next test
+    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture
-def group():
+def two_admins(client, db_session, auth_headers):
+    """Fixture that creates two admins with separate groups for RLS testing."""
+    from api.app.db.models import Admin, Group
+
+    # First admin
+    admin1 = Admin(email="admin1@test.com")
+    db_session.add(admin1)
+    db_session.commit()
+
+    group1 = Group(admin_id=admin1.id, name="Admin 1 Group", contribution_amount=5000)
+    db_session.add(group1)
+    db_session.commit()
+
+    # Second admin
+    admin2 = Admin(email="admin2@test.com")
+    db_session.add(admin2)
+    db_session.commit()
+
+    group2 = Group(admin_id=admin2.id, name="Admin 2 Group", contribution_amount=3000)
+    db_session.add(group2)
+    db_session.commit()
+
+    # Return headers and the group id belonging to admin2
     return {
-        "id": 1,
-        "name": "Test Group",
-        "contribution_amount": 5000,
-        "current_cycle_number": 1,
+        "admin_a_headers": auth_headers,
+        "admin_b_group_id": group2.id,
     }
+
+
+@pytest.fixture
+def group(db_session):
+    """Create a test group in the database."""
+    from api.app.db.models import Admin, Group
+
+    admin = Admin(email="testgroup@admin.com")
+    db_session.add(admin)
+    db_session.commit()
+
+    group = Group(admin_id=admin.id, name="Test Group", contribution_amount=5000)
+    db_session.add(group)
+    db_session.commit()
+    return group
 
 
 @pytest.fixture
