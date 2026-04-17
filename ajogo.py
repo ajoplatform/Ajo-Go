@@ -45,6 +45,11 @@ app = nanodjango.Django(
 # ============== MODELS ==============
 """Thrift group admin/owner"""
 
+@app.admin(
+    list_display = ["id", "email", "name", "created_at"],
+    search_fields = ["email", "name"],
+    list_filter = ["created_at"]
+)
 class Admin(models.Model):
     email = models.CharField(max_length=255, unique=True)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -52,6 +57,8 @@ class Admin(models.Model):
 
     class Meta:
         db_table = "admins"
+        verbose_name = " Admin"
+        verbose_name_plural = " Admins"
 
     def __str__(self):
         return self.email
@@ -78,6 +85,8 @@ class Group(models.Model):
 
     class Meta:
         db_table = "groups"
+        verbose_name = " Group"
+        verbose_name_plural = " Groups"
 
     def __str__(self):
         return self.name
@@ -112,6 +121,7 @@ class Member(models.Model):
     class Meta:
         db_table = "members"
         ordering = ["rotation_order"]
+        verbose_name = " Member"
 
     def __str__(self):
         return f"{self.name} (order: {self.rotation_order})"
@@ -138,6 +148,7 @@ class Contribution(models.Model):
 
     class Meta:
         db_table = "contributions"
+        verbose_name = "contribution"
 
     def __str__(self):
         return f"{self.member.name}: {self.amount} on {self.date.date()}"
@@ -197,11 +208,11 @@ class Payout(models.Model):
 
 
 # ============== ADMIN ==============
-@app.admin(Admin)
-class AdminAdmin(admin.ModelAdmin):
-    list_display = ["id", "email", "name", "created_at"]
-    search_fields = ["email", "name"]
-    list_filter = ["created_at"]
+# @app.admin(Admin)
+# class AdminAdmin(admin.ModelAdmin):
+#     list_display = ["id", "email", "name", "created_at"]
+#     search_fields = ["email", "name"]
+#     list_filter = ["created_at"]
 
 
 @app.admin(Group)
