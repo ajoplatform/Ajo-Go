@@ -1,5 +1,5 @@
 # Byte-compiled / optimized / DLL files
-__pycache__/
+__pycache__
 *.py[cod]
 *$py.class
 *.so
@@ -8,31 +8,31 @@ __pycache__/
 # Virtual environments
 .env
 .venv
-env/
-venv/
-ENV/
+env
+venv
+ENV
 
 # IDE
-.idea/
-.vscode/
+.idea
+.vscode
 *.swp
 *.swo
 .DS_Store
 
 # Unrelated project templates (admin dashboard)
-Source/
-Documentation/
+Source
+Documentation
 
 # Test artifacts
 .coverage
-htmlcov/
-.pytest_cache/
+htmlcov
+.pytest_cache
 *.log
 
 # Build artifacts
-dist/
-build/
-*.egg-info/
+dist
+build
+*.egg-info
 
 # Local database
 *.db
@@ -40,6 +40,5 @@ db.sqlite3
 
 # Local development
 requirements.txt
-scrap/
-venv/
+scrap
 *.tar.gz
