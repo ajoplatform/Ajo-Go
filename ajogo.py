@@ -10,7 +10,6 @@ AjoGo - Single-file Django admin with nanodjango
 Digital Savings & Thrift Platform for West African markets
 """
 
-
 import os
 
 import dj_database_url
@@ -45,14 +44,16 @@ app = nanodjango.Django(
 # ============== MODELS ==============
 """Thrift group admin/owner"""
 
+
 @app.admin(
-    list_display = ["id", "email", "name", "created_at"],
-    search_fields = ["email", "name"],
-    list_filter = ["created_at"]
+    list_display=["id", "email", "name", "created_at"],
+    search_fields=["email", "name"],
+    list_filter=["created_at"],
 )
 class Admin(models.Model):
     email = models.CharField(max_length=255, unique=True)
     name = models.CharField(max_length=255, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
