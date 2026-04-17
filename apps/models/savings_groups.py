@@ -57,7 +57,11 @@ class GroupMember(models.Model):
 class Contribution(models.Model):
     """Member contribution record"""
 
-    SOURCES = [("manual", "Manual Entry"), ("whatsapp_import", "WhatsApp Import")]
+    SOURCES = [
+        ("manual", "Manual Entry"),
+        ("whatsapp_import", "WhatsApp Import"),
+    ]
+
     group = models.ForeignKey(
         SavingsGroup, on_delete=models.CASCADE, related_name="contributions"
     )
