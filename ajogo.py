@@ -273,9 +273,9 @@ class GroupAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(Member
+@admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", "phone", "group", "rotation_order", "created_at"]
+    list_display = ["name", "phone", "group", "rotation_order", "created_at"]
     list_filter = ["group"]
     search_fields = ["name", "phone", "group__name"]
     raw_id_fields = ["group"]
@@ -284,7 +284,7 @@ class MemberAdmin(admin.ModelAdmin):
 
 @admin.register(Contribution)
 class ContributionAdmin(admin.ModelAdmin):
-    list_display = ["id", "member", "amount", "date", "source", "created_at"]
+    list_display = ["member", "amount", "date", "source", "created_at"]
     list_filter = ["source", "date", "group"]
     search_fields = ["member__name", "group__name"]
     raw_id_fields = ["group", "member"]
@@ -295,7 +295,6 @@ class ContributionAdmin(admin.ModelAdmin):
 @admin.register(ReminderRule)
 class ReminderRuleAdmin(admin.ModelAdmin):
     list_display = [
-        "id",
         "group",
         "days_before_payout",
         "message_preview",
