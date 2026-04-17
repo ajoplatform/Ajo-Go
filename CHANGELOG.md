@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] — 2026-04-17
+
+### Added
+- FastAPI REST API layer with all CRUD endpoints
+- Groups, Members, Contributions, Payouts, Cron, WhatsApp Import endpoints
+- Supabase auth with JWT validation
+- Dev mode test-token fallback for local development
+- End-to-end pytest test suite (50 tests)
+
+### Changed
+- Unified project: merged nano and api branches into main
+
 ## [0.1.1] — 2026-04-16
 
 ### Added
