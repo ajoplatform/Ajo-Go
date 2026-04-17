@@ -43,7 +43,6 @@ app = nanodjango.Django(
 
 
 # ============== MODELS ==============
-"""Thrift group admin/owner"""
 
 @app.admin(
     list_display = ["id", "email", "name", "created_at"],
@@ -206,6 +205,36 @@ class Payout(models.Model):
     def __str__(self):
         return f"{self.member.name}: {self.amount} in cycle {self.cycle_number}"
 
+POST_TYPES = [
+    ("post", "Post"),
+    ("message", "Message"),
+    ("comment", "Comment"),
+]
+
+
+
+class Post(models.Model):
+    """Group post/message imported from WhatsApp"""
+
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="posts")
+    sender = models.CharField(max_length=100)
+    content = models.TextField()
+    post_type = models.CharField(max_length=10, choices=POST_TYPES, default="message")
+    timestamp = models.DateTimeField()
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True, related_name="comments"
+    )
+    raw_members = models.JSONField(default=list)
+    raw_line = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "posts"
+        ordering = ["-timestamp"]
+
+    def __str__(self):
+        return f"{self.sender}: {self.post_type} on {self.timestamp.date()}"
+
 
 # ============== ADMIN ==============
 # @app.admin(Admin)
@@ -316,6 +345,51 @@ class PayoutAdmin(admin.ModelAdmin):
     raw_id_fields = ["group", "member"]
     date_hierarchy = "payout_date"
     ordering = ["-payout_date"]
+
+
+
+@app.admin(Post)
+class PostAdmin(admin.ModelAdmin):
+    list_display = [
+        "timestamp",
+        "group",
+        "sender",
+        "post_type",
+        "content_preview",
+    ]
+    list_filter = ["post_type", "timestamp", "group"]
+    search_fields = ["sender", "content", "group__name"]
+    raw_id_fields = ["group", "parent"]
+    date_hierarchy = "timestamp"
+    ordering = ["-timestamp"]
+
+    fieldsets = [
+        (
+            None,
+            {
+                "fields": [
+                    "group",
+                    "sender",
+                    "content",
+                    "post_type",
+                    "timestamp",
+                    "parent",
+                ]
+            },
+        ),
+        (
+            "Raw Data",
+            {
+                "fields": ["raw_members", "raw_line"],
+                "classes": ["collapse"],
+            },
+        ),
+    ]
+
+    def content_preview(self, obj):
+        return obj.content[:50] + "..." if len(obj.content) > 50 else obj.content
+
+    content_preview.short_description = "Content"
 
 
 # ============== MANAGEMENT COMMAND ==============

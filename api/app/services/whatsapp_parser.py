@@ -279,3 +279,40 @@ def parse_whatsapp_posts(content: str) -> List[WhatsAppPost]:
         i += 1
 
     return posts
+
+
+def normalize_name(name: str) -> str:
+    """Normalize name for fuzzy matching"""
+    name = name.lower().strip()
+    name = re.sub(r"^(mrs?|mr|miss|chief)\.?\s*", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\s+", " ", name)
+    return name
+
+
+def fuzzy_match_member(
+    whatsapp_name: str, member_names: List[str], threshold: float = 0.7
+) -> Optional[str]:
+    """Find best matching member name"""
+    normalized_wa = normalize_name(whatsapp_name)
+
+    best_match = None
+    best_score = 0.0
+
+    for member_name in member_names:
+        normalized_mem = normalize_name(member_name)
+
+        # Exact match
+        if normalized_wa == normalized_mem:
+            return member_name
+
+        # Partial match
+        if normalized_wa in normalized_mem or normalized_mem in normalized_wa:
+            score = len(normalized_wa) / max(len(normalized_mem), 1)
+            if score > best_score:
+                best_score = score
+                best_match = member_name
+
+    if best_score >= threshold:
+        return best_match
+
+    return None
