@@ -57,7 +57,7 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL = "apps.MyUser"
 
 AUTHENTICATION_BACKENDS = [
-    "allauth.account.auth_backends.UsernameAuthenticationBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
 MIDDLEWARE = [
