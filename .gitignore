@@ -36,3 +36,9 @@ build/
 
 # Local database
 *.db
+db.sqlite3
+
+# Local development
+requirements.txt
+scrap/
+venv/
