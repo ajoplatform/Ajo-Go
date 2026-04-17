@@ -9,8 +9,8 @@ def get_database_url():
     db_url = os.getenv("DATABASE_URL")
     if db_url:
         return db_url
-    # Default to SQLite for local development
-    return os.getenv("LOCAL_DATABASE_URL", "sqlite:///./ajogo.db")
+    # Default to db.sqlite3 for local development
+    return os.getenv("LOCAL_DATABASE_URL", "sqlite:///./db.sqlite3")
 
 
 DATABASE_URL = get_database_url()

@@ -45,6 +45,7 @@ class Group(Base):
     payouts = relationship(
         "Payout", back_populates="group", cascade="all, delete-orphan"
     )
+    posts = relationship("Post", back_populates="group", cascade="all, delete-orphan")
 
 
 class Member(Base):
@@ -114,3 +115,22 @@ class Payout(Base):
 
     group = relationship("Group", back_populates="payouts")
     member = relationship("Member")
+
+
+class Post(Base):
+    __tablename__ = "posts"
+
+    id = Column(Integer, primary_key=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False)
+    sender = Column(String(100), nullable=False)
+    content = Column(Text, nullable=False)
+    post_type = Column(String(10), default="message")
+    timestamp = Column(DateTime(timezone=True), nullable=False)
+    parent_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
+    raw_members = Column(Text)
+    raw_line = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    group = relationship("Group", back_populates="posts")
+    parent = relationship("Post", remote_side=[id], back_populates="comments")
+    comments = relationship("Post", back_populates="parent")

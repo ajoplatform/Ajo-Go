@@ -39,7 +39,7 @@ build/
 db.sqlite3
 
 # Local development
-convert3D/requirements.txt
+requirements.txt
 scrap/
 venv/
 *.tar.gz

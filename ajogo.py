@@ -14,6 +14,8 @@ import os
 
 import dj_database_url
 import nanodjango
+from django.contrib import admin
+from django.db import models
 
 db_url = dj_database_url.config(
     default=os.getenv("DATABASE_URL", "sqlite:///db.sqlite3"),
@@ -37,16 +39,29 @@ app = nanodjango.Django(
 )
 
 
-from django.contrib import admin
-from django.contrib.auth.models import AbstractUser
-from django.db import models
-
-from time import sleep
-
 # ============== MODELS ==============
 
 
-class SavingsGroup(models.Model):
+@app.admin(
+    list_display=["id", "email", "name", "created_at"],
+    search_fields=["email", "name"],
+    list_filter=["created_at"],
+)
+class Admin(models.Model):
+    email = models.CharField(max_length=255, unique=True)
+    name = models.CharField(max_length=255, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "admins"
+        verbose_name = " Admin"
+        verbose_name_plural = " Admins"
+
+    def __str__(self):
+        return self.email
+
+
+class Group(models.Model):
     """Thrift group with contribution and payout settings"""
 
     PAYOUT_SCHEDULES = [
@@ -55,6 +70,7 @@ class SavingsGroup(models.Model):
         ("monthly", "Monthly"),
     ]
 
+    admin = models.ForeignKey(Admin, on_delete=models.CASCADE, related_name="groups")
     name = models.CharField(max_length=255)
     contribution_amount = models.IntegerField()
     payout_schedule = models.CharField(
@@ -65,9 +81,9 @@ class SavingsGroup(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "savings_groups"
-        verbose_name = " Savings Group"
-        verbose_name_plural = " Savings Groups"
+        db_table = "groups"
+        verbose_name = " Group"
+        verbose_name_plural = " Groups"
 
     def __str__(self):
         return self.name
@@ -76,13 +92,24 @@ class SavingsGroup(models.Model):
     def member_count(self):
         return self.members.count()
 
+    @property
+    def next_recipient(self):
+        """Get next member to receive payout in rotation"""
+        paid_ids = set(
+            self.payouts.filter(cycle_number=self.current_cycle_number).values_list(
+                "member_id", flat=True
+            )
+        )
+        for member in self.members.order_by("rotation_order"):
+            if member.id not in paid_ids:
+                return member
+        return None
+
 
 class Member(models.Model):
     """Group member with rotation order for payouts"""
 
-    group = models.ForeignKey(
-        SavingsGroup, on_delete=models.CASCADE, related_name="members"
-    )
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="members")
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=50)
     rotation_order = models.IntegerField()
@@ -106,7 +133,7 @@ class Contribution(models.Model):
     ]
 
     group = models.ForeignKey(
-        SavingsGroup, on_delete=models.CASCADE, related_name="contributions"
+        Group, on_delete=models.CASCADE, related_name="contributions"
     )
     member = models.ForeignKey(
         Member, on_delete=models.CASCADE, related_name="contributions"
@@ -118,7 +145,8 @@ class Contribution(models.Model):
 
     class Meta:
         db_table = "contributions"
-        verbose_name = "contribution"
+        verbose_name = "Contribution"
+        verbose_name_plural = "Contributions"
 
     def __str__(self):
         return f"{self.member.name}: {self.amount} on {self.date.date()}"
@@ -128,7 +156,7 @@ class ReminderRule(models.Model):
     """Reminder schedule for a group"""
 
     group = models.ForeignKey(
-        SavingsGroup, on_delete=models.CASCADE, related_name="reminder_rules"
+        Group, on_delete=models.CASCADE, related_name="reminder_rules"
     )
     days_before_payout = models.IntegerField(default=1)
     message = models.TextField(blank=True, null=True)
@@ -146,7 +174,7 @@ class ReminderState(models.Model):
     """Tracks reminder state per cycle for idempotency"""
 
     group = models.OneToOneField(
-        SavingsGroup, on_delete=models.CASCADE, related_name="reminder_state"
+        Group, on_delete=models.CASCADE, related_name="reminder_state"
     )
     current_cycle_number = models.IntegerField()
     last_reminder_sent_at = models.DateTimeField(blank=True, null=True)
@@ -163,9 +191,7 @@ class ReminderState(models.Model):
 class Payout(models.Model):
     """Payout record when member receives their payout"""
 
-    group = models.ForeignKey(
-        SavingsGroup, on_delete=models.CASCADE, related_name="payouts"
-    )
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="payouts")
     cycle_number = models.IntegerField()
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     amount = models.IntegerField()
@@ -179,12 +205,37 @@ class Payout(models.Model):
         return f"{self.member.name}: {self.amount} in cycle {self.cycle_number}"
 
 
-sleep(5)
+POST_TYPES = [
+    ("post", "Post"),
+    ("message", "Message"),
+    ("comment", "Comment"),
+]
+
+
+class Post(models.Model):
+    """Group post/message imported from WhatsApp"""
+
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="posts")
+    sender = models.CharField(max_length=100)
+    content = models.TextField()
+    post_type = models.CharField(max_length=10, choices=POST_TYPES, default="message")
+    timestamp = models.DateTimeField()
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True, related_name="comments"
+    )
+    raw_members = models.JSONField(default=list)
+    raw_line = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "posts"
+        ordering = ["-timestamp"]
+
+    def __str__(self):
+        return f"{self.sender}: {self.post_type} on {self.timestamp.date()}"
 
 
 # ============== ADMIN ==============
-
-
 # @app.admin(Admin)
 # class AdminAdmin(admin.ModelAdmin):
 #     list_display = ["id", "email", "name", "created_at"]
@@ -192,7 +243,7 @@ sleep(5)
 #     list_filter = ["created_at"]
 
 
-@app.admin(SavingsGroup)
+@admin.register(Group)
 class GroupAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -222,18 +273,18 @@ class GroupAdmin(admin.ModelAdmin):
     )
 
 
-@app.admin(Member)
+@admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", "phone", "group", "rotation_order", "created_at"]
+    list_display = ["name", "phone", "group", "rotation_order", "created_at"]
     list_filter = ["group"]
     search_fields = ["name", "phone", "group__name"]
     raw_id_fields = ["group"]
     ordering = ["group", "rotation_order"]
 
 
-@app.admin(Contribution)
+@admin.register(Contribution)
 class ContributionAdmin(admin.ModelAdmin):
-    list_display = ["id", "member", "amount", "date", "source", "created_at"]
+    list_display = ["member", "amount", "date", "source", "created_at"]
     list_filter = ["source", "date", "group"]
     search_fields = ["member__name", "group__name"]
     raw_id_fields = ["group", "member"]
@@ -241,10 +292,9 @@ class ContributionAdmin(admin.ModelAdmin):
     ordering = ["-date"]
 
 
-@app.admin(ReminderRule)
+@admin.register(ReminderRule)
 class ReminderRuleAdmin(admin.ModelAdmin):
     list_display = [
-        "id",
         "group",
         "days_before_payout",
         "message_preview",
@@ -265,7 +315,7 @@ class ReminderRuleAdmin(admin.ModelAdmin):
     message_preview.short_description = "Message"
 
 
-@app.admin(ReminderState)
+@admin.register(ReminderState)
 class ReminderStateAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -278,7 +328,7 @@ class ReminderStateAdmin(admin.ModelAdmin):
     readonly_fields = ["created_at", "updated_at"]
 
 
-@app.admin(Payout)
+@admin.register(Payout)
 class PayoutAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -293,6 +343,50 @@ class PayoutAdmin(admin.ModelAdmin):
     raw_id_fields = ["group", "member"]
     date_hierarchy = "payout_date"
     ordering = ["-payout_date"]
+
+
+@admin.register(Post)
+class PostAdmin(admin.ModelAdmin):
+    list_display = [
+        "timestamp",
+        "group",
+        "sender",
+        "post_type",
+        "content_preview",
+    ]
+    list_filter = ["post_type", "timestamp", "group"]
+    search_fields = ["sender", "content", "group__name"]
+    raw_id_fields = ["group", "parent"]
+    date_hierarchy = "timestamp"
+    ordering = ["-timestamp"]
+
+    fieldsets = [
+        (
+            None,
+            {
+                "fields": [
+                    "group",
+                    "sender",
+                    "content",
+                    "post_type",
+                    "timestamp",
+                    "parent",
+                ]
+            },
+        ),
+        (
+            "Raw Data",
+            {
+                "fields": ["raw_members", "raw_line"],
+                "classes": ["collapse"],
+            },
+        ),
+    ]
+
+    def content_preview(self, obj):
+        return obj.content[:50] + "..." if len(obj.content) > 50 else obj.content
+
+    content_preview.short_description = "Content"
 
 
 # ============== MANAGEMENT COMMAND ==============
