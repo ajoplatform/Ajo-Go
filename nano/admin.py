@@ -1,15 +1,6 @@
 from django.contrib import admin
 
-from nano.models import (
-    Admin,
-    Group,
-    Member,
-    Contribution,
-    ReminderRule,
-    ReminderState,
-    Payout,
-    Post,
-)
+from nano.models import Admin, Group, Member, Contribution, ReminderRule, ReminderState, Payout
 
 
 @admin.register(Admin)
@@ -120,48 +111,3 @@ class PayoutAdmin(admin.ModelAdmin):
     raw_id_fields = ["group", "member"]
     date_hierarchy = "payout_date"
     ordering = ["-payout_date"]
-
-
-@admin.register(Post)
-class PostAdmin(admin.ModelAdmin):
-    list_display = [
-        "id",
-        "group",
-        "sender",
-        "post_type",
-        "timestamp",
-        "content_preview",
-    ]
-    list_filter = ["post_type", "timestamp", "group"]
-    search_fields = ["sender", "content", "group__name"]
-    raw_id_fields = ["group", "parent"]
-    date_hierarchy = "timestamp"
-    ordering = ["-timestamp"]
-
-    fieldsets = [
-        (
-            None,
-            {
-                "fields": [
-                    "group",
-                    "sender",
-                    "content",
-                    "post_type",
-                    "timestamp",
-                    "parent",
-                ]
-            },
-        ),
-        (
-            "Raw Data",
-            {
-                "fields": ["raw_members", "raw_line"],
-                "classes": ["collapse"],
-            },
-        ),
-    ]
-
-    def content_preview(self, obj):
-        return obj.content[:50] + "..." if len(obj.content) > 50 else obj.content
-
-    content_preview.short_description = "Content"

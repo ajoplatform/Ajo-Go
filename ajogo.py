@@ -147,7 +147,8 @@ class Contribution(models.Model):
 
     class Meta:
         db_table = "contributions"
-        verbose_name = "contribution"
+        verbose_name = "Contribution"
+        verbose_name_plural = "Contributions"
 
     def __str__(self):
         return f"{self.member.name}: {self.amount} on {self.date.date()}"
