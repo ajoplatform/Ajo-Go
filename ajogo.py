@@ -243,7 +243,7 @@ class Post(models.Model):
 #     list_filter = ["created_at"]
 
 
-@app.admin(Group)
+@admin.register(Group)
 class GroupAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -273,7 +273,7 @@ class GroupAdmin(admin.ModelAdmin):
     )
 
 
-@app.admin(Member)
+@admin.register(Member
 class MemberAdmin(admin.ModelAdmin):
     list_display = ["id", "name", "phone", "group", "rotation_order", "created_at"]
     list_filter = ["group"]
@@ -282,7 +282,7 @@ class MemberAdmin(admin.ModelAdmin):
     ordering = ["group", "rotation_order"]
 
 
-@app.admin(Contribution)
+@admin.register(Contribution)
 class ContributionAdmin(admin.ModelAdmin):
     list_display = ["id", "member", "amount", "date", "source", "created_at"]
     list_filter = ["source", "date", "group"]
@@ -292,7 +292,7 @@ class ContributionAdmin(admin.ModelAdmin):
     ordering = ["-date"]
 
 
-@app.admin(ReminderRule)
+@admin.register(ReminderRule)
 class ReminderRuleAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -316,7 +316,7 @@ class ReminderRuleAdmin(admin.ModelAdmin):
     message_preview.short_description = "Message"
 
 
-@app.admin(ReminderState)
+@admin.register(ReminderState)
 class ReminderStateAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -329,7 +329,7 @@ class ReminderStateAdmin(admin.ModelAdmin):
     readonly_fields = ["created_at", "updated_at"]
 
 
-@app.admin(Payout)
+@admin.register(Payout)
 class PayoutAdmin(admin.ModelAdmin):
     list_display = [
         "id",
@@ -346,7 +346,7 @@ class PayoutAdmin(admin.ModelAdmin):
     ordering = ["-payout_date"]
 
 
-@app.admin(Post)
+@admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
     list_display = [
         "timestamp",

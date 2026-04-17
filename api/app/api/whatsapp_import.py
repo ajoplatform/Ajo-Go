@@ -173,6 +173,7 @@ def import_whatsapp_posts(
             timestamp=wp.timestamp or datetime.utcnow(),
             raw_members=json.dumps(wp.raw_members) if wp.raw_members else "[]",
             raw_line=wp.raw_line,
+            created_at=datetime.utcnow(),
         )
         db.add(db_post)
         posts_imported += 1
@@ -264,6 +265,7 @@ def convert_posts_to_contributions(
                     amount=group.contribution_amount,
                     date=post.timestamp,
                     source="whatsapp_import",
+                    created_at=datetime.utcnow(),
                 )
                 db.add(contrib)
                 contributions_created += 1
@@ -287,6 +289,7 @@ def convert_posts_to_contributions(
                         cycle_number=group.current_cycle_number,
                         amount=group.contribution_amount * group.members.count(),
                         payout_date=post.timestamp,
+                        created_at=datetime.utcnow(),
                     )
                     db.add(payout)
                     payouts_created += 1
