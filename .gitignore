@@ -42,4 +42,3 @@ db.sqlite3
 requirements.txt
 scrap/
 venv/
-ajogo.db

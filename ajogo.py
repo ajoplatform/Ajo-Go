@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.db import models
 
 db_url = dj_database_url.config(
-    default=os.getenv("DATABASE_URL", "sqlite:///ajogo.db"),
+    default=os.getenv("DATABASE_URL", "sqlite:///db.sqlite3"),
     conn_max_age=600,
     conn_health_checks=True,
 )
