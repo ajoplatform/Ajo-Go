@@ -39,7 +39,7 @@ build/
 db.sqlite3
 
 # Local development
-requirements.txt
+convert3D/requirements.txt
 scrap/
 venv/
-ajogo.db
+*.tar.gz
