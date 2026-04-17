@@ -46,11 +46,19 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Third-party
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
     #
-    "apps"
+    "apps",
 ]
 
 AUTH_USER_MODEL = "apps.MyUser"
+
+AUTHENTICATION_BACKENDS = [
+    "allauth.account.auth_backends.UsernameAuthenticationBackend",
+]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -61,6 +69,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "wagtail.contrib.redirects.middleware.RedirectMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -194,3 +203,10 @@ WAGTAILDOCS_EXTENSIONS = [
     "xlsx",
     "zip",
 ]
+
+# django-allauth settings
+ACCOUNT_LOGIN_METHODS = {"username"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
+ACCOUNT_EMAIL_VERIFICATION = "none"
+LOGIN_REDIRECT_URL = "/"
+ACCOUNT_LOGOUT_REDIRECT_URL = "/"
