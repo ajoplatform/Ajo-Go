@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("ajogo", "0002_alter_admin_options_alter_contribution_options_and_more"),
     ]
