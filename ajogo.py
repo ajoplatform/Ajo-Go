@@ -10,7 +10,6 @@ AjoGo - Single-file Django admin with nanodjango
 Digital Savings & Thrift Platform for West African markets
 """
 
-
 import os
 
 import dj_database_url
@@ -19,11 +18,9 @@ from django.contrib import admin
 from django.db import models
 
 db_url = dj_database_url.config(
-    default=os.getenv(
-        "DATABASE_URL", "sqlite:///db.sqlite3"
-    ),  # Optional: fallback for local dev
-    conn_max_age=600,  # Optional: persistent connections
-    conn_health_checks=True,  # Optional: verify connection health
+    default=os.getenv("DATABASE_URL", "sqlite:///ajogo.db"),
+    conn_max_age=600,
+    conn_health_checks=True,
 )
 
 app = nanodjango.Django(
@@ -44,10 +41,11 @@ app = nanodjango.Django(
 
 # ============== MODELS ==============
 
+
 @app.admin(
-    list_display = ["id", "email", "name", "created_at"],
-    search_fields = ["email", "name"],
-    list_filter = ["created_at"]
+    list_display=["id", "email", "name", "created_at"],
+    search_fields=["email", "name"],
+    list_filter=["created_at"],
 )
 class Admin(models.Model):
     email = models.CharField(max_length=255, unique=True)
@@ -206,12 +204,12 @@ class Payout(models.Model):
     def __str__(self):
         return f"{self.member.name}: {self.amount} in cycle {self.cycle_number}"
 
+
 POST_TYPES = [
     ("post", "Post"),
     ("message", "Message"),
     ("comment", "Comment"),
 ]
-
 
 
 class Post(models.Model):
@@ -346,7 +344,6 @@ class PayoutAdmin(admin.ModelAdmin):
     raw_id_fields = ["group", "member"]
     date_hierarchy = "payout_date"
     ordering = ["-payout_date"]
-
 
 
 @app.admin(Post)
