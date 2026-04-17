@@ -14,15 +14,11 @@ import os
 
 import dj_database_url
 import nanodjango
-from django.contrib import admin
-from django.db import models
 
 db_url = dj_database_url.config(
-    default=os.getenv(
-        "DATABASE_URL", "sqlite:///db.sqlite3"
-    ),  # Optional: fallback for local dev
-    conn_max_age=600,  # Optional: persistent connections
-    conn_health_checks=True,  # Optional: verify connection health
+    default=os.getenv("DATABASE_URL", "sqlite:///db.sqlite3"),
+    conn_max_age=600,
+    conn_health_checks=True,
 )
 
 app = nanodjango.Django(
@@ -41,31 +37,16 @@ app = nanodjango.Django(
 )
 
 
+from django.contrib import admin
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+
+from time import sleep
+
 # ============== MODELS ==============
-"""Thrift group admin/owner"""
 
 
-@app.admin(
-    list_display=["id", "email", "name", "created_at"],
-    search_fields=["email", "name"],
-    list_filter=["created_at"],
-)
-class Admin(models.Model):
-    email = models.CharField(max_length=255, unique=True)
-    name = models.CharField(max_length=255, blank=True, null=True)
-    phone = models.CharField(max_length=20, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = "admins"
-        verbose_name = " Admin"
-        verbose_name_plural = " Admins"
-
-    def __str__(self):
-        return self.email
-
-
-class Group(models.Model):
+class SavingsGroup(models.Model):
     """Thrift group with contribution and payout settings"""
 
     PAYOUT_SCHEDULES = [
@@ -74,7 +55,6 @@ class Group(models.Model):
         ("monthly", "Monthly"),
     ]
 
-    admin = models.ForeignKey(Admin, on_delete=models.CASCADE, related_name="groups")
     name = models.CharField(max_length=255)
     contribution_amount = models.IntegerField()
     payout_schedule = models.CharField(
@@ -85,9 +65,9 @@ class Group(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "groups"
-        verbose_name = " Group"
-        verbose_name_plural = " Groups"
+        db_table = "savings_groups"
+        verbose_name = " Savings Group"
+        verbose_name_plural = " Savings Groups"
 
     def __str__(self):
         return self.name
@@ -96,24 +76,13 @@ class Group(models.Model):
     def member_count(self):
         return self.members.count()
 
-    @property
-    def next_recipient(self):
-        """Get next member to receive payout in rotation"""
-        paid_ids = set(
-            self.payouts.filter(cycle_number=self.current_cycle_number).values_list(
-                "member_id", flat=True
-            )
-        )
-        for member in self.members.order_by("rotation_order"):
-            if member.id not in paid_ids:
-                return member
-        return None
-
 
 class Member(models.Model):
     """Group member with rotation order for payouts"""
 
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="members")
+    group = models.ForeignKey(
+        SavingsGroup, on_delete=models.CASCADE, related_name="members"
+    )
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=50)
     rotation_order = models.IntegerField()
@@ -137,7 +106,7 @@ class Contribution(models.Model):
     ]
 
     group = models.ForeignKey(
-        Group, on_delete=models.CASCADE, related_name="contributions"
+        SavingsGroup, on_delete=models.CASCADE, related_name="contributions"
     )
     member = models.ForeignKey(
         Member, on_delete=models.CASCADE, related_name="contributions"
@@ -159,7 +128,7 @@ class ReminderRule(models.Model):
     """Reminder schedule for a group"""
 
     group = models.ForeignKey(
-        Group, on_delete=models.CASCADE, related_name="reminder_rules"
+        SavingsGroup, on_delete=models.CASCADE, related_name="reminder_rules"
     )
     days_before_payout = models.IntegerField(default=1)
     message = models.TextField(blank=True, null=True)
@@ -177,7 +146,7 @@ class ReminderState(models.Model):
     """Tracks reminder state per cycle for idempotency"""
 
     group = models.OneToOneField(
-        Group, on_delete=models.CASCADE, related_name="reminder_state"
+        SavingsGroup, on_delete=models.CASCADE, related_name="reminder_state"
     )
     current_cycle_number = models.IntegerField()
     last_reminder_sent_at = models.DateTimeField(blank=True, null=True)
@@ -194,7 +163,9 @@ class ReminderState(models.Model):
 class Payout(models.Model):
     """Payout record when member receives their payout"""
 
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="payouts")
+    group = models.ForeignKey(
+        SavingsGroup, on_delete=models.CASCADE, related_name="payouts"
+    )
     cycle_number = models.IntegerField()
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     amount = models.IntegerField()
@@ -208,7 +179,12 @@ class Payout(models.Model):
         return f"{self.member.name}: {self.amount} in cycle {self.cycle_number}"
 
 
+sleep(5)
+
+
 # ============== ADMIN ==============
+
+
 # @app.admin(Admin)
 # class AdminAdmin(admin.ModelAdmin):
 #     list_display = ["id", "email", "name", "created_at"]
@@ -216,7 +192,7 @@ class Payout(models.Model):
 #     list_filter = ["created_at"]
 
 
-@app.admin(Group)
+@app.admin(SavingsGroup)
 class GroupAdmin(admin.ModelAdmin):
     list_display = [
         "id",
