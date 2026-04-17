@@ -1,20 +1,11 @@
+from django.contrib.auth import get_user_model
 from django.db import models
 
-"""Thrift group admin/owner"""
-class Admin(models.Model):
 
-    email = models.CharField(max_length=255, unique=True)
-    name = models.CharField(max_length=255, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = "admins"
-
-    def __str__(self):
-        return self.email
+User = get_user_model()
 
 
-class Group(models.Model):
+class SavingsGroup(models.Model):
     """Thrift group with contribution and payout settings"""
 
     PAYOUT_SCHEDULES = [
@@ -22,19 +13,18 @@ class Group(models.Model):
         ("biweekly", "Bi-weekly"),
         ("monthly", "Monthly"),
     ]
-
-    admin = models.ForeignKey(Admin, on_delete=models.CASCADE, related_name="groups")
     name = models.CharField(max_length=255)
     contribution_amount = models.IntegerField()
-    payout_schedule = models.CharField(
-        max_length=50, choices=PAYOUT_SCHEDULES, default="monthly"
-    )
+    contribution_schedule = models.CharField( max_length=50, choices=PAYOUT_SCHEDULES, default="monthly", )
+    payout_schedule = models.CharField( max_length=50, choices=PAYOUT_SCHEDULES, default="monthly", )
     current_cycle_number = models.IntegerField(default=1)
+    created_by = models.ForeignKey( User, on_delete=models.DO_NOTHING, related_name="created_groups", )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "groups"
+        db_table = "savings_groups"
+        verbose_name = "   Savings Group"
 
     def __str__(self):
         return self.name
@@ -43,50 +33,36 @@ class Group(models.Model):
     def member_count(self):
         return self.members.count()
 
-    @property
-    def next_recipient(self):
-        """Get next member to receive payout in rotation"""
-        paid_ids = set(
-            self.payouts.filter(cycle_number=self.current_cycle_number).values_list(
-                "member_id", flat=True
-            )
-        )
-        for member in self.members.order_by("rotation_order"):
-            if member.id not in paid_ids:
-                return member
-        return None
 
-
-class Member(models.Model):
+class GroupMember(models.Model):
     """Group member with rotation order for payouts"""
 
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="members")
-    name = models.CharField(max_length=255)
-    phone = models.CharField(max_length=50)
+    group = models.ForeignKey( SavingsGroup, on_delete=models.DO_NOTHING, related_name="members", )
+    member = models.ForeignKey( User, on_delete=models.DO_NOTHING, related_name="user", )
     rotation_order = models.IntegerField()
+    alias = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = "members"
+        db_table = "group_members"
         ordering = ["rotation_order"]
+        verbose_name = "  Member"
+        unique_together = (("group", "member", "rotation_order"),)
 
     def __str__(self):
-        return f"{self.name} (order: {self.rotation_order})"
+        return f"{self.member.full_name} (order: {self.rotation_order})"
+
 
 
 class Contribution(models.Model):
     """Member contribution record"""
 
-    SOURCES = [
-        ("manual", "Manual Entry"),
-        ("whatsapp_import", "WhatsApp Import"),
-    ]
-
+    SOURCES = [("manual", "Manual Entry"), ("whatsapp_import", "WhatsApp Import")]
     group = models.ForeignKey(
-        Group, on_delete=models.CASCADE, related_name="contributions"
+        SavingsGroup, on_delete=models.CASCADE, related_name="contributions"
     )
     member = models.ForeignKey(
-        Member, on_delete=models.CASCADE, related_name="contributions"
+        GroupMember, on_delete=models.CASCADE, related_name="contributions"
     )
     amount = models.IntegerField()
     date = models.DateTimeField()
@@ -95,6 +71,7 @@ class Contribution(models.Model):
 
     class Meta:
         db_table = "contributions"
+        verbose_name = " Contribution"
 
     def __str__(self):
         return f"{self.member.name}: {self.amount} on {self.date.date()}"
@@ -104,7 +81,7 @@ class ReminderRule(models.Model):
     """Reminder schedule for a group"""
 
     group = models.ForeignKey(
-        Group, on_delete=models.CASCADE, related_name="reminder_rules"
+        SavingsGroup, on_delete=models.CASCADE, related_name="reminder_rules"
     )
     days_before_payout = models.IntegerField(default=1)
     message = models.TextField(blank=True, null=True)
@@ -113,6 +90,7 @@ class ReminderRule(models.Model):
 
     class Meta:
         db_table = "reminder_rules"
+        verbose_name = " Reminder Rule"
 
     def __str__(self):
         return f"{self.group.name}: {self.days_before_payout} days before"
@@ -122,7 +100,7 @@ class ReminderState(models.Model):
     """Tracks reminder state per cycle for idempotency"""
 
     group = models.OneToOneField(
-        Group, on_delete=models.CASCADE, related_name="reminder_state"
+        SavingsGroup, on_delete=models.CASCADE, related_name="reminder_state"
     )
     current_cycle_number = models.IntegerField()
     last_reminder_sent_at = models.DateTimeField(blank=True, null=True)
@@ -131,6 +109,7 @@ class ReminderState(models.Model):
 
     class Meta:
         db_table = "reminder_states"
+        verbose_name = " Reminder State"
 
     def __str__(self):
         return f"{self.group.name} - Cycle {self.current_cycle_number}"
@@ -139,9 +118,11 @@ class ReminderState(models.Model):
 class Payout(models.Model):
     """Payout record when member receives their payout"""
 
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name="payouts")
+    group = models.ForeignKey(
+        SavingsGroup, on_delete=models.CASCADE, related_name="payouts"
+    )
     cycle_number = models.IntegerField()
-    member = models.ForeignKey(Member, on_delete=models.CASCADE)
+    member = models.ForeignKey(GroupMember, on_delete=models.CASCADE)
     amount = models.IntegerField()
     payout_date = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)

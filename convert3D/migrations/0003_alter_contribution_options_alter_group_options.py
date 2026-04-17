@@ -4,18 +4,17 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ("ajogo", "0003_alter_contribution_options_alter_group_options"),
+        ("ajogo", "0002_alter_admin_options_alter_contribution_options_and_more"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name="admin",
-            options={"verbose_name": " Admin", "verbose_name_plural": " Admins"},
+            name="contribution",
+            options={"verbose_name": "contribution"},
         ),
         migrations.AlterModelOptions(
             name="group",
-            options={"verbose_name": " Group", "verbose_name_plural": " Groups"},
+            options={"verbose_name": " group", "verbose_name_plural": " groups"},
         ),
     ]

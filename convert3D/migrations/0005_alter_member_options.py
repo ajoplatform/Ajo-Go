@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("ajogo", "0004_alter_admin_options_alter_group_options"),
     ]

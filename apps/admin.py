@@ -1,22 +1,17 @@
 from django.contrib import admin
 
-from nano.models import Admin, Group, Member, Contribution, ReminderRule, ReminderState, Payout
+from apps.models import (
+    SavingsGroup, GroupMember, Contribution, ReminderRule, ReminderState, Payout,
+)
 
 
-@admin.register(Admin)
-class AdminAdmin(admin.ModelAdmin):
-    list_display = ["id", "email", "name", "created_at"]
-    search_fields = ["email", "name"]
-    list_filter = ["created_at"]
-
-
-@admin.register(Group)
+@admin.register(SavingsGroup)
 class GroupAdmin(admin.ModelAdmin):
     list_display = [
-        "id",
         "name",
-        "admin",
+        "created_by",
         "contribution_amount",
+        "contribution_schedule",
         "payout_schedule",
         "current_cycle_number",
         "member_count",
@@ -24,7 +19,7 @@ class GroupAdmin(admin.ModelAdmin):
     ]
     list_filter = ["payout_schedule", "created_at"]
     search_fields = ["name", "admin__email"]
-    raw_id_fields = ["admin"]
+    raw_id_fields = ["created_by"]
     readonly_fields = ["created_at", "updated_at"]
 
     fieldsets = (
@@ -40,11 +35,11 @@ class GroupAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(Member)
+@admin.register(GroupMember)
 class MemberAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", "phone", "group", "rotation_order", "created_at"]
+    list_display = ["group", "member", "rotation_order", "created_at"]
     list_filter = ["group"]
-    search_fields = ["name", "phone", "group__name"]
+    search_fields = ["group__name", "member__phone", "group__name"]
     raw_id_fields = ["group"]
     ordering = ["group", "rotation_order"]
 
