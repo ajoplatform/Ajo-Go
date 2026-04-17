@@ -1,6 +1,6 @@
 # AjoGo — Digital Savings & Thrift Platform
 
-Built with: FastAPI + Supabase + Vercel + Twilio WhatsApp API
+Built with: Django 6 + Wagtail CMS + PostgreSQL (planned)
 
 ## Overview
 
@@ -11,39 +11,62 @@ Target user: Reghie — runs "Reghie Collections" thrift business with 10 groups
 ## Project Structure
 
 ```
-api/                    # FastAPI backend
-  app/
-    api/               # Route handlers
-    core/              # Config, security
-    db/                # Database models & migrations
-    services/          # Business logic
-    whatsapp/          # Twilio WhatsApp integration
-  tests/               # Unit + integration tests
-  e2e/                 # End-to-end tests
-frontend/              # (planned)
+config/              # Django project settings
+  settings/         # base.py, dev.py, production.py
+  urls.py            # URL routing (Wagtail + admin)
+  wsgi.py            # WSGI entry point
+apps/               # Custom Django app (thrift business logic)
+  models/           # MyUser, SavingsGroup, Member, etc.
+home/               # Wagtail home page app
+search/             # Wagtail search app
+manage.py           # Django management script
+requirements.txt    # Python dependencies
 ```
+
+## Migration Status
+
+- **2025-04-17**: Migrated from nanodjango single-file to full Django + Wagtail project
+- **Next**: Implement django-allauth for authentication
 
 ## Key Decisions
 
+- CMS: Wagtail (content management for announcements, guides)
+- Auth: django-allauth (email/password, social logins later)
 - Payout cycle: rotating (auto-detect completion + admin manual override)
-- Auth: Supabase magic link by email
-- Cron: Vercel Cron Jobs (every 15 min) calling `/api/cron/send-reminders`
-- WhatsApp import: regex parser with confidence scoring + admin review UI
+- WhatsApp: Twilio API for notifications
 - Payments: Phase 2 (MVP is reminders + record-keeping only)
 
-## Data Model
+## Data Model (apps/models/)
 
-- `Group` — thrift group with contribution_amount, payout_schedule, current_cycle_number
+- `MyUser` — custom user with phone field (extends AbstractUser)
+- `SavingsGroup` — thrift group with contribution_amount, payout_schedule, current_cycle_number
 - `Member` — member with phone, name, rotation_order
 - `Contribution` — contribution record with source ('manual' | 'whatsapp_import')
 - `ReminderState` — tracks reminder state per cycle for idempotency
 - `Payout` — payout history per cycle
 
+## Running the Project
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run migrations
+python manage.py migrate
+
+# Create superuser
+python manage.py createsuperuser
+
+# Run dev server
+python manage.py runserver
+```
+
+Visit http://localhost:8000 for the site, http://localhost:8000/admin for Wagtail CMS.
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
 tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
 
 Key routing rules:
 - Product ideas, "is this worth building", brainstorming → invoke office-hours
@@ -59,52 +82,7 @@ Key routing rules:
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
 
-## Testing
-
-Run: `pytest tests/ -v`
-
-See [TEST_PLAN.md](TEST_PLAN.md) for the full test plan.
-
 ## References
 
 - [DESIGN.md](DESDESIGN.md) — approved product design
 - [TEST_PLAN.md](TEST_PLAN.md) — test specification
-
-## Deploy Configuration (configured by /setup-deploy)
-
-- **Platform:** Vercel
-- **Production URL:** `https://your-project-name.vercel.app` (create at vercel.com)
-- **Deploy workflow:** Auto-deploy on push to main
-- **Deploy status command:** HTTP health check at `/health`
-- **Merge method:** squash
-- **Project type:** API (FastAPI)
-- **Post-deploy health check:** GET `/health`
-
-### Vercel Cron Jobs
-
-- **Reminders:** Runs every 15 minutes at `/api/cron/send-reminders`
-- Cron secret: Set `CRON_SECRET` env var in Vercel dashboard
-- Pass via header: `X-Cron-Secret: <your-secret>`
-
-### Environment Variables (set in Vercel dashboard)
-
-| Variable | Description |
-|----------|-------------|
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_KEY` | Supabase service role key |
-| `DATABASE_URL` | PostgreSQL connection string (from Supabase) |
-| `CRON_SECRET` | Secret for cron endpoint auth |
-| `TWILIO_ACCOUNT_SID` | Twilio Account SID |
-| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
-| `TWILIO_PHONE_NUMBER` | Twilio WhatsApp phone number |
-
-### Deploy Commands
-
-```bash
-# Local development
-cd api && pip install -r requirements.txt
-python -m uvicorn main:app --reload
-
-# Deploy (after connecting repo at vercel.com)
-git push origin main
-```
