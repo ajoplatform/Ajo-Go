@@ -26,7 +26,8 @@ requirements.txt    # Python dependencies
 ## Migration Status
 
 - **2025-04-17**: Migrated from nanodjango single-file to full Django + Wagtail project
-- **Next**: Implement django-allauth for authentication
+- **2025-04-18**: Implemented django-allauth for authentication
+- **Next**: Update FastAPI layer for new model names
 
 ## Key Decisions
 
@@ -40,10 +41,12 @@ requirements.txt    # Python dependencies
 
 - `MyUser` — custom user with phone field (extends AbstractUser)
 - `SavingsGroup` — thrift group with contribution_amount, payout_schedule, current_cycle_number
-- `Member` — member with phone, name, rotation_order
+- `GroupMember` — member with phone, name, rotation_order (formerly Member)
 - `Contribution` — contribution record with source ('manual' | 'whatsapp_import')
 - `ReminderState` — tracks reminder state per cycle for idempotency
 - `Payout` — payout history per cycle
+- `ReminderRule` — reminder configuration per group
+- `Post` — group messaging/announcements
 
 ## Running the Project
 

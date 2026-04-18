@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] — 2026-04-18
+
+### Added
+- Full Django 6 + Wagtail CMS project structure
+- django-allauth for authentication (email/password)
+- New models: SavingsGroup, GroupMember, Contribution, Payout, ReminderRule, ReminderState, Post
+
+### Changed
+- Migrated from nanodjango single-file to full Django project
+- Renamed `Member` model to `GroupMember`
+
+### Note
+- FastAPI layer still present, needs model name updates for new Django models
+
 ## [0.2.0] — 2026-04-17
 
 ### Added
