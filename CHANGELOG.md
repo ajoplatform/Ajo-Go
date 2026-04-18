@@ -12,9 +12,10 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Migrated from nanodjango single-file to full Django project
 - Renamed `Member` model to `GroupMember`
+- FastAPI layer now uses Django ORM instead of SQLAlchemy
 
-### Note
-- FastAPI layer still present, needs model name updates for new Django models
+### Fixed
+- Model field names aligned across Django and FastAPI layers
 
 ## [0.2.0] — 2026-04-17
 

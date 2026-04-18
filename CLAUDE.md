@@ -16,7 +16,8 @@ config/              # Django project settings
   urls.py            # URL routing (Wagtail + admin)
   wsgi.py            # WSGI entry point
 apps/               # Custom Django app (thrift business logic)
-  models/           # MyUser, SavingsGroup, Member, etc.
+  models/           # MyUser, SavingsGroup, GroupMember, etc.
+api/                # FastAPI layer (uses Django ORM)
 home/               # Wagtail home page app
 search/             # Wagtail search app
 manage.py           # Django management script
@@ -27,7 +28,7 @@ requirements.txt    # Python dependencies
 
 - **2025-04-17**: Migrated from nanodjango single-file to full Django + Wagtail project
 - **2025-04-18**: Implemented django-allauth for authentication
-- **Next**: Update FastAPI layer for new model names
+- **2025-04-18**: Migrated FastAPI layer to use Django ORM (completed)
 
 ## Key Decisions
 

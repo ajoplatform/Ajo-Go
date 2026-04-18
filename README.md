@@ -29,4 +29,20 @@ python manage.py runserver
 - **Backend**: Django 6
 - **CMS**: Wagtail
 - **Auth**: django-allauth
+- **API**: FastAPI (uses Django ORM)
 - **Database**: SQLite (dev) / PostgreSQL (prod)
+
+## API
+
+FastAPI runs on port 8002:
+
+```bash
+cd api && python -m uvicorn main:app --port 8002
+```
+
+Endpoints:
+- `/api/groups` — CRUD for savings groups
+- `/api/groups/{id}/members` — group members
+- `/api/groups/{id}/contributions` — contribution records
+- `/api/groups/{id}/payouts` — payout management
+- `/api/groups/{id}/whatsapp-import` — WhatsApp chat import
