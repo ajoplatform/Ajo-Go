@@ -1,25 +1,57 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+import os
+import sys
+from pathlib import Path
+
+# Add project root to path (api/ -> project root)
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "api"))
+
+# Configure Django
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+
+import django
+django.setup()
+
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
-from sqlalchemy.orm import Session
+from django.contrib.auth import get_user_model
 
-from api.app.db.database import get_db
-from api.app.db.models import Group, Member, Admin
-from api.app.core.auth import get_current_admin
-
+from apps.models.savings_groups import SavingsGroup, GroupMember
 
 router = APIRouter(prefix="/api/groups/{group_id}/members", tags=["members"])
 
+User = get_user_model()
+
+
+def get_current_user(request):
+    """Get current user from request - simplified for now."""
+    return request
+
+
+def get_group_or_404(group_id: int, user) -> SavingsGroup:
+    try:
+        group = SavingsGroup.objects.get(id=group_id)
+    except SavingsGroup.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Group not found")
+    if group.created_by != user:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return group
+
 
 class MemberCreate(BaseModel):
-    name: str
+    # For now, use alias (name) directly since we may not have User objects for each member
+    alias: str
     phone: str
     rotation_order: int
+    # Optional: link to existing User
+    user_id: Optional[int] = None
 
 
 class MemberUpdate(BaseModel):
-    name: Optional[str] = None
+    alias: Optional[str] = None
     phone: Optional[str] = None
     rotation_order: Optional[int] = None
 
@@ -27,7 +59,7 @@ class MemberUpdate(BaseModel):
 class MemberResponse(BaseModel):
     id: int
     group_id: int
-    name: str
+    alias: str
     phone: str
     rotation_order: int
     created_at: Optional[datetime] = None
@@ -36,50 +68,39 @@ class MemberResponse(BaseModel):
         from_attributes = True
 
 
-def get_group_or_404(group_id: int, db: Session, admin: dict) -> Group:
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
-    admin_obj = db.query(Admin).filter(Admin.email == admin["email"]).first()
-    if group.admin_id != admin_obj.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    return group
-
-
 @router.post("", response_model=MemberResponse, status_code=201)
 def create_member(
     group_id: int,
     member: MemberCreate,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    group = get_group_or_404(group_id, db, admin)
+    group = get_group_or_404(group_id, user)
 
-    db_member = Member(
-        group_id=group_id,
-        name=member.name,
+    # Get user object if user_id provided, otherwise None
+    member_user = None
+    if member.user_id:
+        try:
+            member_user = User.objects.get(id=member.user_id)
+        except User.DoesNotExist:
+            pass
+
+    db_member = GroupMember.objects.create(
+        group=group,
+        member=member_user,
+        alias=member.alias,
         phone=member.phone,
         rotation_order=member.rotation_order,
     )
-    db.add(db_member)
-    db.commit()
-    db.refresh(db_member)
     return db_member
 
 
 @router.get("", response_model=List[MemberResponse])
 def list_members(
     group_id: int,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    group = get_group_or_404(group_id, db, admin)
-    members = (
-        db.query(Member)
-        .filter(Member.group_id == group_id)
-        .order_by(Member.rotation_order)
-        .all()
-    )
+    group = get_group_or_404(group_id, user)
+    members = GroupMember.objects.filter(group=group).order_by('rotation_order')
     return members
 
 
@@ -87,16 +108,12 @@ def list_members(
 def get_member(
     group_id: int,
     member_id: int,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    group = get_group_or_404(group_id, db, admin)
-    member = (
-        db.query(Member)
-        .filter(Member.id == member_id, Member.group_id == group_id)
-        .first()
-    )
-    if not member:
+    group = get_group_or_404(group_id, user)
+    try:
+        member = GroupMember.objects.get(id=member_id, group=group)
+    except GroupMember.DoesNotExist:
         raise HTTPException(status_code=404, detail="Member not found")
     return member
 
@@ -106,27 +123,22 @@ def update_member(
     group_id: int,
     member_id: int,
     member_update: MemberUpdate,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    group = get_group_or_404(group_id, db, admin)
-    member = (
-        db.query(Member)
-        .filter(Member.id == member_id, Member.group_id == group_id)
-        .first()
-    )
-    if not member:
+    group = get_group_or_404(group_id, user)
+    try:
+        member = GroupMember.objects.get(id=member_id, group=group)
+    except GroupMember.DoesNotExist:
         raise HTTPException(status_code=404, detail="Member not found")
 
-    if member_update.name is not None:
-        member.name = member_update.name
+    if member_update.alias is not None:
+        member.alias = member_update.alias
     if member_update.phone is not None:
         member.phone = member_update.phone
     if member_update.rotation_order is not None:
         member.rotation_order = member_update.rotation_order
 
-    db.commit()
-    db.refresh(member)
+    member.save()
     return member
 
 
@@ -134,18 +146,13 @@ def update_member(
 def delete_member(
     group_id: int,
     member_id: int,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    group = get_group_or_404(group_id, db, admin)
-    member = (
-        db.query(Member)
-        .filter(Member.id == member_id, Member.group_id == group_id)
-        .first()
-    )
-    if not member:
+    group = get_group_or_404(group_id, user)
+    try:
+        member = GroupMember.objects.get(id=member_id, group=group)
+    except GroupMember.DoesNotExist:
         raise HTTPException(status_code=404, detail="Member not found")
 
-    db.delete(member)
-    db.commit()
+    member.delete()
     return None

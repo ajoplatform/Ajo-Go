@@ -1,9 +1,22 @@
+import os
+import sys
+from pathlib import Path
+
+# Add project root to path (api/ -> project root)
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "api"))
+
+# Configure Django before importing Django models
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+
+import django
+django.setup()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.app.api import groups, members, contributions, payouts, cron, whatsapp_import
-from api.app.db.database import engine
-from api.app.db.models import Base
 
 
 app = FastAPI(title="AjoGo API", version="0.1.0")
@@ -26,7 +39,8 @@ app.include_router(whatsapp_import.router)
 
 @app.on_event("startup")
 def startup():
-    Base.metadata.create_all(bind=engine)
+    # Django models are managed via manage.py migrate
+    pass
 
 
 @app.get("/health")

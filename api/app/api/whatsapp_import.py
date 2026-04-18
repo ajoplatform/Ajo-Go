@@ -1,13 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
+import os
+import sys
+from pathlib import Path
+
+# Add project root to path (api/ -> project root)
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "api"))
+
+# Configure Django
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+
+import django
+django.setup()
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
-from sqlalchemy.orm import Session
-import json
+from django.db import transaction
+from django.contrib.auth import get_user_model
 
-from api.app.db.database import get_db
-from api.app.db.models import Group, Member, Contribution, Admin, Post
-from api.app.core.auth import get_current_admin
 from api.app.services.whatsapp_parser import (
     parse_file,
     WhatsAppParseResult,
@@ -15,10 +27,30 @@ from api.app.services.whatsapp_parser import (
     fuzzy_match_member,
 )
 
+# Import Django models
+from apps.models.savings_groups import (
+    SavingsGroup,
+    GroupMember,
+    Contribution,
+    Payout,
+    ReminderRule,
+    ReminderState,
+)
+from apps.models.posts import Post as WhatsAppPost
+from apps.models.users import MyUser
 
 router = APIRouter(
     prefix="/api/groups/{group_id}/whatsapp-import", tags=["whatsapp-import"]
 )
+
+User = get_user_model()
+
+
+def get_user_or_403(request):
+    """Get current user from request - simplified for now."""
+    # TODO: integrate with django-allauth session
+    # For now, we'll use a simple approach
+    return request
 
 
 class ParsedContribution(BaseModel):
@@ -39,25 +71,22 @@ class ImportResponse(BaseModel):
     skipped: int
 
 
-def get_group_or_404(group_id: int, db: Session, admin: dict) -> Group:
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
+def get_group_or_404(group_id: int, user) -> SavingsGroup:
+    try:
+        group = SavingsGroup.objects.get(id=group_id)
+        if group.created_by != user:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        return group
+    except SavingsGroup.DoesNotExist:
         raise HTTPException(status_code=404, detail="Group not found")
-    admin_obj = db.query(Admin).filter(Admin.email == admin["email"]).first()
-    if group.admin_id != admin_obj.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    return group
 
 
 @router.post("/parse", response_model=List[ParsedContribution])
 def parse_whatsapp_export(
     group_id: int,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_user_or_403),
 ):
-    group = get_group_or_404(group_id, db, admin)
-
     content = file.file.read().decode("utf-8", errors="ignore")
     results = parse_file(content)
 
@@ -77,10 +106,15 @@ def parse_whatsapp_export(
 def import_contributions(
     group_id: int,
     import_request: ImportRequest,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_user_or_403),
 ):
-    group = get_group_or_404(group_id, db, admin)
+    try:
+        group = SavingsGroup.objects.get(id=group_id)
+    except SavingsGroup.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    if group.created_by != user:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     imported = 0
     skipped = 0
@@ -93,41 +127,36 @@ def import_contributions(
             skipped += 1
             continue
 
-        member = (
-            db.query(Member)
-            .filter(Member.group_id == group_id, Member.name.ilike(sender))
-            .first()
-        )
+        # Find member by alias (name)
+        member = GroupMember.objects.filter(
+            group_id=group_id,
+            alias__iexact=sender
+        ).first()
 
         if not member:
             skipped += 1
             continue
 
-        existing = (
-            db.query(Contribution)
-            .filter(
-                Contribution.group_id == group_id,
-                Contribution.member_id == member.id,
-                Contribution.amount == amount,
-            )
-            .first()
-        )
+        # Check for duplicates
+        existing = Contribution.objects.filter(
+            group_id=group_id,
+            member_id=member.id,
+            amount=amount,
+        ).first()
 
         if existing:
             skipped += 1
             continue
 
-        db_contribution = Contribution(
-            group_id=group_id,
-            member_id=member.id,
+        Contribution.objects.create(
+            group=group,
+            member=member,
             amount=amount,
             date=datetime.utcnow(),
             source=import_request.source,
         )
-        db.add(db_contribution)
         imported += 1
 
-    db.commit()
     return ImportResponse(imported=imported, skipped=skipped)
 
 
@@ -142,11 +171,16 @@ class PostImportResponse(BaseModel):
 def import_whatsapp_posts(
     group_id: int,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_user_or_403),
 ):
     """Import WhatsApp chat as Posts"""
-    group = get_group_or_404(group_id, db, admin)
+    try:
+        group = SavingsGroup.objects.get(id=group_id)
+    except SavingsGroup.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    if group.created_by != user:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     content = file.file.read().decode("utf-8", errors="ignore")
     posts = parse_whatsapp_posts(content)
@@ -165,17 +199,16 @@ def import_whatsapp_posts(
             "message": "message",
         }
 
-        db_post = Post(
-            group_id=group_id,
+        WhatsAppPost.objects.create(
+            group=group,
+            user=user if hasattr(user, 'id') else None,
             sender=wp.sender,
             content=wp.content,
             post_type=post_type_map.get(wp.post_type, "message"),
             timestamp=wp.timestamp or datetime.utcnow(),
-            raw_members=json.dumps(wp.raw_members) if wp.raw_members else "[]",
+            raw_members=wp.raw_members,
             raw_line=wp.raw_line,
-            created_at=datetime.utcnow(),
         )
-        db.add(db_post)
         posts_imported += 1
 
         if wp.post_type == "payment":
@@ -185,7 +218,6 @@ def import_whatsapp_posts(
         else:
             messages_found += 1
 
-    db.commit()
     return PostImportResponse(
         posts_imported=posts_imported,
         payments_found=payments_found,
@@ -203,20 +235,24 @@ class ConvertResponse(BaseModel):
 @router.post("/convert-posts", response_model=ConvertResponse)
 def convert_posts_to_contributions(
     group_id: int,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_user_or_403),
 ):
     """Convert payment posts to Contributions and Payouts"""
-    group = get_group_or_404(group_id, db, admin)
+    try:
+        group = SavingsGroup.objects.get(id=group_id)
+    except SavingsGroup.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Group not found")
 
-    # Get all members for this group
-    members = db.query(Member).filter(Member.group_id == group_id).all()
-    member_names = [m.name for m in members]
-    member_by_name = {m.name: m for m in members}
+    if group.created_by != user:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Get payment posts that haven't been converted
-    payment_posts = (
-        db.query(Post).filter(Post.group_id == group_id, Post.post_type == "post").all()
+    members = GroupMember.objects.filter(group_id=group_id)
+    member_names = [m.alias for m in members]
+    member_by_alias = {m.alias: m for m in members}
+
+    payment_posts = WhatsAppPost.objects.filter(
+        group_id=group_id,
+        post_type="post"
     )
 
     contributions_created = 0
@@ -227,74 +263,56 @@ def convert_posts_to_contributions(
         if not post.raw_members:
             continue
 
-        import json
-
-        raw_members = json.loads(post.raw_members)
+        raw_members = post.raw_members if isinstance(post.raw_members, list) else []
         if not raw_members:
             continue
 
         for rm in raw_members:
-            whats_app_name = rm.get("name", "")
-            if not whats_app_name:
+            whatsapp_name = rm.get("name", "")
+            if not whatsapp_name:
                 continue
 
-            # Fuzzy match
-            matched_name = fuzzy_match_member(whats_app_name, member_names)
+            matched_name = fuzzy_match_member(whatsapp_name, member_names)
             if not matched_name:
-                unmatched.append({"whatsapp": whats_app_name, "post_id": post.id})
+                unmatched.append({"whatsapp": whatsapp_name, "post_id": post.id})
                 continue
 
-            member = member_by_name.get(matched_name)
+            member = member_by_alias.get(matched_name)
             if not member:
                 continue
 
-            # Check if contribution already exists
-            existing = (
-                db.query(Contribution)
-                .filter(
-                    Contribution.group_id == group_id,
-                    Contribution.member_id == member.id,
-                )
-                .first()
-            )
+            existing_contrib = Contribution.objects.filter(
+                group_id=group_id,
+                member_id=member.id,
+            ).first()
 
-            if not existing:
-                contrib = Contribution(
-                    group_id=group_id,
-                    member_id=member.id,
+            if not existing_contrib:
+                Contribution.objects.create(
+                    group=group,
+                    member=member,
                     amount=group.contribution_amount,
                     date=post.timestamp,
                     source="whatsapp_import",
-                    created_at=datetime.utcnow(),
                 )
-                db.add(contrib)
                 contributions_created += 1
 
-            # If marked as received payout, create payout record
             if rm.get("received_payout"):
-                existing_payout = (
-                    db.query(Payout)
-                    .filter(
-                        Payout.group_id == group_id,
-                        Payout.member_id == member.id,
-                        Payout.cycle_number == group.current_cycle_number,
-                    )
-                    .first()
-                )
+                existing_payout = Payout.objects.filter(
+                    group_id=group_id,
+                    member_id=member.id,
+                    cycle_number=group.current_cycle_number,
+                ).first()
 
                 if not existing_payout:
-                    payout = Payout(
-                        group_id=group_id,
-                        member_id=member.id,
+                    Payout.objects.create(
+                        group=group,
+                        member=member,
                         cycle_number=group.current_cycle_number,
-                        amount=group.contribution_amount * group.members.count(),
+                        amount=group.contribution_amount * members.count(),
                         payout_date=post.timestamp,
-                        created_at=datetime.utcnow(),
                     )
-                    db.add(payout)
                     payouts_created += 1
 
-    db.commit()
     return ConvertResponse(
         contributions_created=contributions_created,
         payouts_created=payouts_created,

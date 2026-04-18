@@ -14,7 +14,7 @@ class Post(models.Model):
     """Group post/message imported from WhatsApp"""
 
     group = models.ForeignKey(SavingsGroup, on_delete=models.CASCADE, related_name="posts")
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="posts")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="posts", null=True, blank=True)
     sender = models.CharField(max_length=100)
     content = models.TextField()
     post_type = models.CharField(max_length=10, choices=POST_TYPES, default="message")

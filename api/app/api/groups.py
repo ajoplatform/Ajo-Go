@@ -1,15 +1,35 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+import os
+import sys
+from pathlib import Path
+
+# Add project root to path (api/ -> project root)
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "api"))
+
+# Configure Django
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+
+import django
+django.setup()
+
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
-from sqlalchemy.orm import Session
+from django.contrib.auth import get_user_model
 
-from api.app.db.database import get_db
-from api.app.db.models import Group, Admin
-from api.app.core.auth import get_current_admin
-
+from apps.models.savings_groups import SavingsGroup, GroupMember, Contribution, Payout, ReminderRule, ReminderState
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
+
+User = get_user_model()
+
+
+def get_current_user(request):
+    """Get current user from request - simplified for now."""
+    # TODO: integrate with django-allauth session
+    return request
 
 
 class GroupCreate(BaseModel):
@@ -39,53 +59,35 @@ class GroupResponse(BaseModel):
 @router.post("", response_model=GroupResponse, status_code=201)
 def create_group(
     group: GroupCreate,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    admin_obj = db.query(Admin).filter(Admin.email == admin["email"]).first()
-    if not admin_obj:
-        admin_obj = Admin(email=admin["email"])
-        db.add(admin_obj)
-        db.commit()
-        db.refresh(admin_obj)
-
-    db_group = Group(
-        admin_id=admin_obj.id,
+    db_group = SavingsGroup.objects.create(
+        created_by=user,
         name=group.name,
         contribution_amount=group.contribution_amount,
         payout_schedule=group.payout_schedule,
     )
-    db.add(db_group)
-    db.commit()
-    db.refresh(db_group)
 
     return db_group
 
 
 @router.get("", response_model=List[GroupResponse])
-def list_groups(
-    db: Session = Depends(get_db), admin: dict = Depends(get_current_admin)
-):
-    admin_obj = db.query(Admin).filter(Admin.email == admin["email"]).first()
-    if not admin_obj:
-        return []
-
-    groups = db.query(Group).filter(Group.admin_id == admin_obj.id).all()
+def list_groups(user=Depends(get_current_user)):
+    groups = SavingsGroup.objects.filter(created_by=user).all()
     return groups
 
 
 @router.get("/{group_id}", response_model=GroupResponse)
 def get_group(
     group_id: int,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
+    try:
+        group = SavingsGroup.objects.get(id=group_id)
+    except SavingsGroup.DoesNotExist:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    admin_obj = db.query(Admin).filter(Admin.email == admin["email"]).first()
-    if group.admin_id != admin_obj.id:
+    if group.created_by != user:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     return group
@@ -95,15 +97,14 @@ def get_group(
 def update_group(
     group_id: int,
     group_update: GroupUpdate,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
+    try:
+        group = SavingsGroup.objects.get(id=group_id)
+    except SavingsGroup.DoesNotExist:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    admin_obj = db.query(Admin).filter(Admin.email == admin["email"]).first()
-    if group.admin_id != admin_obj.id:
+    if group.created_by != user:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     if group_update.name is not None:
@@ -113,25 +114,22 @@ def update_group(
     if group_update.payout_schedule is not None:
         group.payout_schedule = group_update.payout_schedule
 
-    db.commit()
-    db.refresh(group)
+    group.save()
     return group
 
 
 @router.delete("/{group_id}", status_code=204)
 def delete_group(
     group_id: int,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
+    try:
+        group = SavingsGroup.objects.get(id=group_id)
+    except SavingsGroup.DoesNotExist:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    admin_obj = db.query(Admin).filter(Admin.email == admin["email"]).first()
-    if group.admin_id != admin_obj.id:
+    if group.created_by != user:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    db.delete(group)
-    db.commit()
+    group.delete()
     return None

@@ -1,16 +1,30 @@
+import os
+import sys
+from pathlib import Path
+
+# Add project root to path (api/ -> project root)
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "api"))
+
+# Configure Django
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+
+import django
+django.setup()
+
 from fastapi import APIRouter, Depends, HTTPException, Header
 from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
-import os
 
-from api.app.db.database import get_db
-from api.app.db.models import Group, Member, ReminderRule, ReminderState, Admin
-from api.app.core.auth import get_current_admin
-
+from apps.models.savings_groups import SavingsGroup, GroupMember, ReminderRule, ReminderState
 
 router = APIRouter(prefix="/api/cron", tags=["cron"])
+
+
+def get_current_user(request):
+    return request
 
 
 class ReminderRuleCreate(BaseModel):
@@ -38,48 +52,40 @@ class CronResponse(BaseModel):
 @router.get("/send-reminders", response_model=CronResponse)
 def send_reminders(
     cron_secret: Optional[str] = Header(None, alias="X-Cron-Secret"),
-    db: Session = Depends(get_db),
 ):
     expected_secret = os.getenv("CRON_SECRET")
     if expected_secret and cron_secret != expected_secret:
         raise HTTPException(status_code=401, detail="Invalid cron secret")
 
-    groups = db.query(Group).all()
+    groups = SavingsGroup.objects.all()
     reminders_sent = 0
 
     for group in groups:
-        reminder_rules = (
-            db.query(ReminderRule)
-            .filter(ReminderRule.group_id == group.id, ReminderRule.is_active == True)
-            .all()
-        )
+        reminder_rules = ReminderRule.objects.filter(
+            group=group, is_active=True
+        ).all()
 
         for rule in reminder_rules:
-            reminder_state = (
-                db.query(ReminderState)
-                .filter(ReminderState.group_id == group.id)
-                .first()
-            )
+            reminder_state = ReminderState.objects.filter(group=group).first()
 
             if reminder_state and reminder_state.last_reminder_sent_at:
                 last_sent = reminder_state.last_reminder_sent_at
                 if (datetime.utcnow() - last_sent) < timedelta(hours=23):
                     continue
 
-            members = db.query(Member).filter(Member.group_id == group.id).all()
+            members = GroupMember.objects.filter(group=group).all()
             for member in members:
                 pass
 
             if not reminder_state:
-                reminder_state = ReminderState(
-                    group_id=group.id, current_cycle_number=group.current_cycle_number
+                reminder_state = ReminderState.objects.create(
+                    group=group, current_cycle_number=group.current_cycle_number
                 )
-                db.add(reminder_state)
 
             reminder_state.last_reminder_sent_at = datetime.utcnow()
+            reminder_state.save()
             reminders_sent += 1
 
-    db.commit()
     return CronResponse(reminders_sent=reminders_sent, groups_checked=len(groups))
 
 
@@ -91,26 +97,22 @@ def send_reminders(
 def create_reminder_rule(
     group_id: int,
     rule: ReminderRuleCreate,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
+    try:
+        group = SavingsGroup.objects.get(id=group_id)
+    except SavingsGroup.DoesNotExist:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    admin_obj = db.query(Admin).filter(Admin.email == admin["email"]).first()
-    if group.admin_id != admin_obj.id:
+    if group.created_by != user:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    db_rule = ReminderRule(
-        group_id=group_id,
+    db_rule = ReminderRule.objects.create(
+        group=group,
         days_before_payout=rule.days_before_payout,
         message=rule.message,
         is_active=rule.is_active,
     )
-    db.add(db_rule)
-    db.commit()
-    db.refresh(db_rule)
     return db_rule
 
 
@@ -119,16 +121,15 @@ def create_reminder_rule(
 )
 def list_reminder_rules(
     group_id: int,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin),
+    user=Depends(get_current_user),
 ):
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
+    try:
+        group = SavingsGroup.objects.get(id=group_id)
+    except SavingsGroup.DoesNotExist:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    admin_obj = db.query(Admin).filter(Admin.email == admin["email"]).first()
-    if group.admin_id != admin_obj.id:
+    if group.created_by != user:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    rules = db.query(ReminderRule).filter(ReminderRule.group_id == group_id).all()
+    rules = ReminderRule.objects.filter(group=group).all()
     return rules
